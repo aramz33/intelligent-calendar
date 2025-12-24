@@ -32,6 +32,18 @@ def update_current_user(
     if user_update.password is not None:
         current_user.hashed_password = get_password_hash(user_update.password)
 
+    if user_update.working_hours_start is not None:
+        current_user.working_hours_start = user_update.working_hours_start
+
+    if user_update.working_hours_end is not None:
+        current_user.working_hours_end = user_update.working_hours_end
+
+    if user_update.working_days is not None:
+        current_user.working_days = user_update.working_days
+
+    if user_update.default_task_duration is not None:
+        current_user.default_task_duration = user_update.default_task_duration
+
     db.commit()
     db.refresh(current_user)
 
