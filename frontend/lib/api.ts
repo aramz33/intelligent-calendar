@@ -26,6 +26,10 @@ export interface User {
   email: string;
   full_name: string | null;
   timezone: string;
+  working_hours_start: string;
+  working_hours_end: string;
+  working_days: string[];
+  default_task_duration: number;
   created_at: string;
   updated_at: string;
 }
@@ -132,5 +136,130 @@ export const tasks = {
 
   delete: async (id: number): Promise<void> => {
     await api.delete(`/tasks/${id}`);
+  },
+};
+
+// Calendar types
+export interface CalendarEvent {
+  type: 'hard_event' | 'soft_task';
+  id: number;
+  title: string;
+  start: string;
+  end: string;
+  status?: string;
+  priority?: number;
+  location?: string;
+  is_all_day?: boolean;
+  calendar_source_id?: number;
+  color?: string;
+}
+
+export interface CalendarResponse {
+  events: CalendarEvent[];
+  unscheduled_tasks: Task[];
+}
+
+export interface CalendarSource {
+  id: number;
+  name: string;
+  color: string;
+  sync_enabled: boolean;
+  last_synced_at: string | null;
+  source_type: 'ical' | 'google_oauth';
+}
+
+// Calendar functions
+export const calendar = {
+  getView: async (startDate: string, endDate: string): Promise<CalendarResponse> => {
+    const response = await api.get('/calendar/', {
+      params: { start_date: startDate, end_date: endDate }
+    });
+    return response.data;
+  },
+
+  getSources: async (): Promise<CalendarSource[]> => {
+    const response = await api.get('/calendar/sources');
+    return response.data;
+  },
+
+  initiateGoogleOAuth: async (): Promise<{ authorization_url: string }> => {
+    const response = await api.get('/calendar/oauth/google/authorize');
+    return response.data;
+  },
+
+  syncSource: async (sourceId: number): Promise<{
+    success: boolean;
+    events_added: number;
+    events_updated: number;
+    message: string;
+  }> => {
+    const response = await api.post(`/calendar/sources/${sourceId}/sync`);
+    return response.data;
+  },
+
+  deleteSource: async (sourceId: number): Promise<void> => {
+    await api.delete(`/calendar/sources/${sourceId}`);
+  },
+
+  createICalSource: async (data: {
+    name: string;
+    ical_url: string;
+    ical_username?: string;
+    ical_password?: string;
+    sync_enabled?: boolean;
+    color?: string;
+  }): Promise<CalendarSource> => {
+    const response = await api.post('/calendar/sources', data);
+    return response.data;
+  },
+};
+
+// Scheduling functions
+export const scheduling = {
+  autoSchedule: async (taskIds: number[], daysAhead: number = 7): Promise<{
+    scheduled_count: number;
+    failed_count: number;
+    scheduled_task_ids: number[];
+    failed_task_ids: number[];
+    message: string;
+  }> => {
+    const response = await api.post('/schedule/auto', {
+      task_ids: taskIds,
+      days_ahead: daysAhead
+    });
+    return response.data;
+  },
+
+  scheduleWithCSP: async (taskIds: number[], daysAhead: number = 7): Promise<{
+    scheduled_count: number;
+    failed_count: number;
+    scheduled_task_ids: number[];
+    failed_task_ids: number[];
+    schedule: Record<number, { start: string; end: string }>;
+    message: string;
+    solver_status: string;
+  }> => {
+    const response = await api.post('/schedule/csp', {
+      task_ids: taskIds,
+      days_ahead: daysAhead
+    });
+    return response.data;
+  },
+
+  moveTaskWithRipple: async (taskId: number, newStart: Date, newEnd: Date): Promise<{
+    success: boolean;
+    changes: Array<{
+      task_id: number;
+      old_start: string;
+      new_start: string;
+    }>;
+    message: string;
+  }> => {
+    const response = await api.post('/schedule/move-task', {
+      task_id: taskId,
+      new_start: newStart.toISOString(),
+      new_end: newEnd.toISOString()
+    });
+    return response.data;
   },
 };

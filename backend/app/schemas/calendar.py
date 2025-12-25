@@ -16,6 +16,8 @@ class CalendarEvent(BaseModel):
     # Event-specific fields
     location: Optional[str] = None
     is_all_day: Optional[bool] = None
+    calendar_source_id: Optional[int] = None
+    color: Optional[str] = None
 
     class Config:
         from_attributes = True

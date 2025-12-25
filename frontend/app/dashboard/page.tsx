@@ -19,6 +19,9 @@ export default function DashboardPage() {
   const [duration, setDuration] = useState(60);
   const [priority, setPriority] = useState(5);
   const [category, setCategory] = useState('general');
+  const [energyRequired, setEnergyRequired] = useState<'low' | 'medium' | 'high'>('medium');
+  const [deadline, setDeadline] = useState('');
+  const [earliestStart, setEarliestStart] = useState('');
 
   useEffect(() => {
     loadData();
@@ -60,7 +63,9 @@ export default function DashboardPage() {
         estimated_duration_minutes: duration,
         priority,
         category,
-        energy_required: 'medium',
+        energy_required: energyRequired,
+        deadline: deadline ? new Date(deadline).toISOString() : undefined,
+        earliest_start: earliestStart ? new Date(earliestStart).toISOString() : undefined,
       });
 
       // Reset form
@@ -69,6 +74,9 @@ export default function DashboardPage() {
       setDuration(60);
       setPriority(5);
       setCategory('general');
+      setEnergyRequired('medium');
+      setDeadline('');
+      setEarliestStart('');
       setShowCreateTask(false);
 
       // Reload tasks
@@ -157,6 +165,12 @@ export default function DashboardPage() {
             </div>
             <div className="flex items-center space-x-2">
               <ThemeToggle />
+              <button
+                onClick={() => router.push('/calendar')}
+                className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition"
+              >
+                Calendar
+              </button>
               <button
                 onClick={handleLogout}
                 className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition"
@@ -296,7 +310,7 @@ export default function DashboardPage() {
                       min={1}
                       max={10}
                       value={priority}
-                      onChange={(e) => setPriority(parseInt(e.target.value))}
+                      onChange={(e) => setPriority(parseInt(e.target.value) || 5)}
                       className="w-full px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-gray-900 dark:text-white"
                     />
                   </div>
@@ -317,6 +331,47 @@ export default function DashboardPage() {
                       <option value="research">Research</option>
                     </select>
                   </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Energy Required
+                    </label>
+                    <select
+                      value={energyRequired}
+                      onChange={(e) => setEnergyRequired(e.target.value as 'low' | 'medium' | 'high')}
+                      className="w-full px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-gray-900 dark:text-white"
+                    >
+                      <option value="low">Low Energy</option>
+                      <option value="medium">Medium Energy</option>
+                      <option value="high">High Energy (Deep Work)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Deadline
+                    </label>
+                    <input
+                      type="datetime-local"
+                      value={deadline}
+                      onChange={(e) => setDeadline(e.target.value)}
+                      className="w-full px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-gray-900 dark:text-white"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Earliest Start
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={earliestStart}
+                    onChange={(e) => setEarliestStart(e.target.value)}
+                    className="w-full px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-gray-900 dark:text-white"
+                  />
                 </div>
 
                 <div className="flex gap-3">

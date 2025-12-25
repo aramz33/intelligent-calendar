@@ -37,6 +37,10 @@ requests==2.31.0
 # Background tasks (for iCal sync)
 apscheduler==3.10.4
 
+# CSP Scheduling (OR-Tools)
+ortools==9.8.3296
+numpy==1.24.4
+
 # Testing (we'll use these later)
 pytest==7.4.4
 pytest-asyncio==0.23.3

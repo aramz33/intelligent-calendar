@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.api.v1 import api_router
+from app.services.background_jobs import init_scheduler, shutdown_scheduler
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -38,3 +39,17 @@ def health_check():
         "status": "healthy",
         "environment": settings.ENVIRONMENT
     }
+
+
+@app.on_event("startup")
+async def startup_event():
+    """Initialize background jobs on app startup"""
+    init_scheduler()
+    print("✓ Background scheduler started")
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Stop background jobs on app shutdown"""
+    shutdown_scheduler()
+    print("✓ Background scheduler stopped")

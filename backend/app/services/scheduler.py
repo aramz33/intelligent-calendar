@@ -81,6 +81,9 @@ def get_available_slots(
     # Sort busy periods by start time
     busy_periods.sort(key=lambda x: x[0])
 
+    # Get current time (naive) to skip past slots
+    now = datetime.now()
+
     # Iterate through each day
     current_date = start_date
     while current_date <= end_date:
@@ -93,6 +96,15 @@ def get_available_slots(
         # Get working hours for this day
         work_start = datetime.combine(current_date, user.working_hours_start)
         work_end = datetime.combine(current_date, user.working_hours_end)
+
+        # Skip past times - if today, start from current time
+        if current_date == now.date() and work_start < now:
+            work_start = now
+
+        # Skip if working hours are already past
+        if work_start >= work_end:
+            current_date += timedelta(days=1)
+            continue
 
         # Find free slots by removing busy periods from working hours
         current_time = work_start

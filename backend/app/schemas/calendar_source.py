@@ -1,11 +1,12 @@
 from pydantic import BaseModel
 from datetime import datetime
 from typing import Optional
+from app.models.calendar_source import SourceType
 
 
 class CalendarSourceBase(BaseModel):
     name: str
-    ical_url: str
+    ical_url: Optional[str] = None
     sync_enabled: bool = True
     sync_frequency_minutes: int = 15
     color: str = "#3B82F6"
@@ -29,6 +30,7 @@ class CalendarSourceUpdate(BaseModel):
 class CalendarSourceResponse(CalendarSourceBase):
     id: int
     user_id: int
+    source_type: SourceType
     last_synced_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
