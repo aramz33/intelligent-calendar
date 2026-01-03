@@ -78,7 +78,7 @@ class CSPScheduler:
         self,
         tasks: List[SoftTask],
         days_ahead: int = 7
-    ) -> Dict[int, Tuple[datetime, datetime]]:
+    ) -> Dict[int, Tuple[datetime, datetime, str]]:
         """
         Schedule tasks using CSP optimization.
 
@@ -87,7 +87,7 @@ class CSPScheduler:
             days_ahead: Number of days to look ahead for scheduling
 
         Returns:
-            Dict mapping task_id -> (start_time, end_time)
+            Dict mapping task_id -> (start_time, end_time, reasoning)
         """
         if not tasks:
             return {}
@@ -316,8 +316,43 @@ class CSPScheduler:
         if objective_terms:
             self.model.Minimize(sum(objective_terms))
 
-    def _extract_solution(self) -> Dict[int, Tuple[datetime, datetime]]:
-        """Extract the solution from the solved model"""
+    def _generate_reasoning(self, task: SoftTask, start_interval: int) -> str:
+        """Generate human-readable reasoning for task placement"""
+        start_time = interval_to_datetime(start_interval, self.start_date)
+        reasoning_parts = []
+
+        # Priority factor
+        if task.priority >= 8:
+            reasoning_parts.append(f"🎯 High priority ({task.priority}/10)")
+        elif task.priority >= 5:
+            reasoning_parts.append(f"📌 Medium priority ({task.priority}/10)")
+        else:
+            reasoning_parts.append(f"📍 Lower priority ({task.priority}/10)")
+
+        # Deadline factor
+        if task.deadline:
+            deadline_naive = make_naive(task.deadline)
+            hours_until = (deadline_naive - start_time).total_seconds() / 3600
+            if hours_until <= 24:
+                reasoning_parts.append(f"⏰ Deadline in {int(hours_until)} hours")
+            else:
+                days_until = int(hours_until / 24)
+                reasoning_parts.append(f"⏰ Deadline in {days_until} days")
+
+        # Working hours optimization
+        hour = start_time.hour
+        if 9 <= hour <= 11:
+            reasoning_parts.append("⚡ Peak morning productivity hours")
+        elif 14 <= hour <= 16:
+            reasoning_parts.append("⚡ Afternoon focus time")
+
+        # No conflicts
+        reasoning_parts.append("🔗 No conflicts with meetings/tasks")
+
+        return "\n".join(reasoning_parts)
+
+    def _extract_solution(self) -> Dict[int, Tuple[datetime, datetime, str]]:
+        """Extract the solution from the solved model with reasoning"""
         result = {}
 
         for task_id, vars in self.task_vars.items():
@@ -327,8 +362,12 @@ class CSPScheduler:
             start_time = interval_to_datetime(start_interval, self.start_date)
             end_time = interval_to_datetime(end_interval, self.start_date)
 
-            result[task_id] = (make_aware(start_time), make_aware(end_time))
+            # Get task for reasoning
+            task = self.db.query(SoftTask).filter(SoftTask.id == task_id).first()
+            reasoning = self._generate_reasoning(task, start_interval) if task else "Scheduled by CSP solver"
 
-            logger.info(f"Task {task_id}: {start_time} - {end_time}")
+            result[task_id] = (make_aware(start_time), make_aware(end_time), reasoning)
+
+            logger.info(f"Task {task_id}: {start_time} - {end_time} | Reasoning: {reasoning.replace(chr(10), ' / ')}")
 
         return result

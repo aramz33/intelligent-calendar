@@ -29,6 +29,9 @@ class Settings(BaseSettings):
     # Environment
     ENVIRONMENT: str = "development"
 
+    # Development - Disable auth for easier testing (set to True in .env)
+    DEV_DISABLE_AUTH: bool = False
+
     class Config:
         env_file = ".env"
         case_sensitive = True

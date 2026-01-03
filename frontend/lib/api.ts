@@ -1,6 +1,7 @@
 import axios from 'axios';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
+const DEV_DISABLE_AUTH = process.env.NEXT_PUBLIC_DEV_DISABLE_AUTH === 'true';
 
 export const api = axios.create({
   baseURL: API_URL,
@@ -96,6 +97,10 @@ export const auth = {
   },
 
   isAuthenticated: (): boolean => {
+    // DEV MODE: Always authenticated
+    if (DEV_DISABLE_AUTH) {
+      return true;
+    }
     if (typeof window !== 'undefined') {
       return !!localStorage.getItem('access_token');
     }
@@ -137,6 +142,14 @@ export const tasks = {
   delete: async (id: number): Promise<void> => {
     await api.delete(`/tasks/${id}`);
   },
+
+  scheduleTask: async (taskId: number, start: Date, end: Date): Promise<Task> => {
+    const response = await api.patch(`/tasks/${taskId}`, {
+      scheduled_start: start.toISOString(),
+      scheduled_end: end.toISOString(),
+    });
+    return response.data;
+  },
 };
 
 // Calendar types
@@ -148,10 +161,13 @@ export interface CalendarEvent {
   end: string;
   status?: string;
   priority?: number;
+  reasoning?: string; // CSP reasoning for soft tasks
   location?: string;
   is_all_day?: boolean;
   calendar_source_id?: number;
   color?: string;
+  is_recurring?: boolean;
+  recurrence_rule?: string;
 }
 
 export interface CalendarResponse {

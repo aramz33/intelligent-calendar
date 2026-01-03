@@ -41,10 +41,10 @@ class GoogleCalendarSyncService:
             # Build Google Calendar API client
             service = build('calendar', 'v3', credentials=credentials)
 
-            # Fetch events for next 60 days
+            # Fetch events for next 180 days (6 months for better long-term planning)
             now = datetime.now(timezone.utc)
             time_min = now.replace(tzinfo=None).isoformat() + 'Z'
-            time_max = (now + timedelta(days=60)).replace(tzinfo=None).isoformat() + 'Z'
+            time_max = (now + timedelta(days=180)).replace(tzinfo=None).isoformat() + 'Z'
 
             logger.info(f"Fetching Google Calendar events for source {source.id} ({source.name})")
 
@@ -131,6 +131,17 @@ class GoogleCalendarSyncService:
             start_time = datetime.fromisoformat(start.replace('Z', '+00:00'))
             end_time = datetime.fromisoformat(end.replace('Z', '+00:00'))
 
+            # Check for recurrence
+            is_recurring = False
+            recurrence_rule = None
+            if 'recurrence' in event:
+                is_recurring = True
+                # Google Calendar returns recurrence as a list of RRULE strings
+                recurrence = event.get('recurrence', [])
+                if recurrence:
+                    # Join multiple recurrence rules if present
+                    recurrence_rule = '; '.join(recurrence)
+
             # Check if exists
             existing = self.db.query(HardEvent).filter(
                 HardEvent.calendar_source_id == source.id,
@@ -148,6 +159,8 @@ class GoogleCalendarSyncService:
                 existing.status = event.get('status', 'confirmed').lower()
                 existing.organizer = event.get('organizer', {}).get('email')
                 existing.attendees = [a.get('email') for a in event.get('attendees', [])]
+                existing.is_recurring = is_recurring
+                existing.recurrence_rule = recurrence_rule
                 updated += 1
             else:
                 # Create new event
@@ -163,7 +176,9 @@ class GoogleCalendarSyncService:
                     is_all_day=is_all_day,
                     status=event.get('status', 'confirmed').lower(),
                     organizer=event.get('organizer', {}).get('email'),
-                    attendees=[a.get('email') for a in event.get('attendees', [])]
+                    attendees=[a.get('email') for a in event.get('attendees', [])],
+                    is_recurring=is_recurring,
+                    recurrence_rule=recurrence_rule
                 )
                 self.db.add(hard_event)
                 added += 1

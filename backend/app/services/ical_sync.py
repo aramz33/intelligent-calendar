@@ -58,9 +58,9 @@ class ICalSyncService:
             # Parse iCal
             cal = Calendar.from_ical(ical_data)
 
-            # Get events for next 60 days (configurable)
+            # Get events for next 180 days (6 months for better long-term planning)
             start_date = datetime.now()
-            end_date = start_date + timedelta(days=60)
+            end_date = start_date + timedelta(days=180)
 
             # Extract events (handles recurring events)
             events = recurring_ical_events.of(cal).between(start_date, end_date)
@@ -200,6 +200,15 @@ class ICalSyncService:
                     else:
                         attendees.append(str(attendee))
 
+                # Check for recurrence rule
+                is_recurring = False
+                recurrence_rule = None
+                if 'RRULE' in event:
+                    is_recurring = True
+                    rrule = event.get('RRULE')
+                    if rrule:
+                        recurrence_rule = str(rrule)
+
                 # Check if event already exists
                 existing = self.db.query(HardEvent).filter(
                     HardEvent.calendar_source_id == source.id,
@@ -217,6 +226,8 @@ class ICalSyncService:
                     existing.status = status
                     existing.organizer = organizer
                     existing.attendees = attendees
+                    existing.is_recurring = is_recurring
+                    existing.recurrence_rule = recurrence_rule
                     existing.updated_at = datetime.utcnow()
                     updated += 1
                 else:
@@ -233,7 +244,9 @@ class ICalSyncService:
                         is_all_day=is_all_day,
                         status=status,
                         organizer=organizer,
-                        attendees=attendees
+                        attendees=attendees,
+                        is_recurring=is_recurring,
+                        recurrence_rule=recurrence_rule
                     )
                     self.db.add(hard_event)
                     added += 1

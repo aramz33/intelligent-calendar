@@ -74,7 +74,7 @@ class CSPScheduleResponse(BaseModel):
     failed_count: int
     scheduled_task_ids: List[int]
     failed_task_ids: List[int]
-    schedule: Dict[int, Dict[str, str]]  # task_id -> {start, end}
+    schedule: Dict[int, Dict[str, str]]  # task_id -> {start, end, reasoning}
     message: str
     solver_status: str
 
@@ -119,7 +119,7 @@ def schedule_with_csp(
 
     for task in tasks:
         if task.id in schedule:
-            start_time, end_time = schedule[task.id]
+            start_time, end_time, reasoning = schedule[task.id]
             task.scheduled_start = start_time
             task.scheduled_end = end_time
             scheduled_ids.append(task.id)
@@ -132,9 +132,10 @@ def schedule_with_csp(
     schedule_formatted = {
         task_id: {
             "start": start.isoformat(),
-            "end": end.isoformat()
+            "end": end.isoformat(),
+            "reasoning": reasoning
         }
-        for task_id, (start, end) in schedule.items()
+        for task_id, (start, end, reasoning) in schedule.items()
     }
 
     # Build response message

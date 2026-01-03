@@ -35,6 +35,43 @@ router = APIRouter()
 SCOPES = ['https://www.googleapis.com/auth/calendar.readonly']
 
 
+def generate_reasoning_for_display(task: SoftTask) -> str:
+    """Generate human-readable reasoning for why a task was scheduled at its current time"""
+    if not task.scheduled_start:
+        return ""
+
+    reasoning_parts = []
+
+    # Priority factor
+    if task.priority >= 8:
+        reasoning_parts.append(f"🎯 High priority ({task.priority}/10)")
+    elif task.priority >= 5:
+        reasoning_parts.append(f"📌 Medium priority ({task.priority}/10)")
+    else:
+        reasoning_parts.append(f"📍 Lower priority ({task.priority}/10)")
+
+    # Deadline factor
+    if task.deadline:
+        hours_until = (task.deadline - task.scheduled_start).total_seconds() / 3600
+        if hours_until <= 24:
+            reasoning_parts.append(f"⏰ Deadline in {int(hours_until)} hours")
+        else:
+            days_until = int(hours_until / 24)
+            reasoning_parts.append(f"⏰ Deadline in {days_until} days")
+
+    # Working hours optimization
+    hour = task.scheduled_start.hour
+    if 9 <= hour <= 11:
+        reasoning_parts.append("⚡ Peak morning productivity hours")
+    elif 14 <= hour <= 16:
+        reasoning_parts.append("⚡ Afternoon focus time")
+
+    # No conflicts
+    reasoning_parts.append("🔗 No conflicts with meetings/tasks")
+
+    return "\n".join(reasoning_parts)
+
+
 @router.get("/", response_model=CalendarResponse)
 def get_calendar_view(
         start_date: date = Query(..., description="Start date for calendar view"),
@@ -95,11 +132,14 @@ def get_calendar_view(
             location=event.location,
             is_all_day=event.is_all_day,
             calendar_source_id=event.calendar_source_id,
-            color=source_colors.get(event.calendar_source_id) if event.calendar_source_id else None
+            color=source_colors.get(event.calendar_source_id) if event.calendar_source_id else None,
+            is_recurring=event.is_recurring,
+            recurrence_rule=event.recurrence_rule
         ))
 
     # Add scheduled tasks
     for task in scheduled_tasks:
+        reasoning = generate_reasoning_for_display(task)
         events.append(CalendarEvent(
             type="soft_task",
             id=task.id,
@@ -107,7 +147,8 @@ def get_calendar_view(
             start=task.scheduled_start,
             end=task.scheduled_end,
             status=task.status,
-            priority=task.priority
+            priority=task.priority,
+            reasoning=reasoning
         ))
 
     # Sort all events by start time

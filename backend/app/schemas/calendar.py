@@ -13,11 +13,14 @@ class CalendarEvent(BaseModel):
     # Task-specific fields
     status: Optional[str] = None
     priority: Optional[int] = None
+    reasoning: Optional[str] = None  # CSP placement reasoning for soft tasks
     # Event-specific fields
     location: Optional[str] = None
     is_all_day: Optional[bool] = None
     calendar_source_id: Optional[int] = None
     color: Optional[str] = None
+    is_recurring: Optional[bool] = None
+    recurrence_rule: Optional[str] = None
 
     class Config:
         from_attributes = True

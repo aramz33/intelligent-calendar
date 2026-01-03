@@ -1,9 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { auth } from '@/lib/api';
 import ThemeToggle from '@/components/ThemeToggle';
+
+const DEV_DISABLE_AUTH = process.env.NEXT_PUBLIC_DEV_DISABLE_AUTH === 'true';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -13,6 +15,13 @@ export default function LoginPage() {
   const [fullName, setFullName] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // DEV MODE: Skip login page and go straight to calendar
+  useEffect(() => {
+    if (DEV_DISABLE_AUTH) {
+      router.push('/calendar');
+    }
+  }, [router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

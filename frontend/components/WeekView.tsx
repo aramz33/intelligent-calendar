@@ -1,56 +1,49 @@
 'use client';
 
-import { CalendarEvent, tasks, Task } from '@/lib/api';
+import { CalendarEvent } from '@/lib/api';
 import { format, startOfWeek, addDays, isSameDay, parseISO } from 'date-fns';
 import { DndContext, DragEndEvent, useDraggable, useDroppable, DragOverlay, DragStartEvent } from '@dnd-kit/core';
 import { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import ReasoningTooltip from './ReasoningTooltip';
 
-interface DraggableCalendarProps {
+interface WeekViewProps {
   events: CalendarEvent[];
   currentDate: Date;
   workingHoursStart: string;
   workingHoursEnd: string;
   onEventMove: (eventId: number, eventType: string, newStart: Date, newEnd: Date) => Promise<void>;
   onCalendarReload?: () => Promise<void>;
-  rippleChanges?: Array<{
-    task_id: number;
-    old_start: string;
-    new_start: string;
-  }>;
 }
 
 interface DraggableEventProps {
   event: CalendarEvent;
   style: { top: string; height: string };
-  colorClass: string;
   colorStyle?: React.CSSProperties;
 }
 
-function DraggableEvent({ event, style, colorClass, colorStyle }: DraggableEventProps) {
+function DraggableEvent({ event, style, colorStyle }: DraggableEventProps) {
   const isHard = event.type === 'hard_event';
   const isSoft = event.type === 'soft_task';
 
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: `${event.type}-${event.id}`,
     data: event,
-    disabled: isHard, // Only soft tasks draggable
+    disabled: isHard,
   });
 
   const transformStyle = transform ? {
     transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
   } : undefined;
 
-  // Visual distinction: Hard (solid, opaque) vs Soft (dashed, translucent)
+  // Apple Calendar style: hard events are solid, soft tasks have subtle distinction
   const visualStyles = isSoft
-    ? 'border-2 border-dashed opacity-70 hover:opacity-90 cursor-move'
-    : 'border-l-4 border-solid opacity-100 cursor-default';
+    ? 'border-l-4 opacity-90 hover:opacity-100 cursor-move'
+    : 'border-l-4 opacity-95 cursor-default';
 
   const eventContent = (
     <div
       ref={setNodeRef}
-      className={`absolute left-0 right-0 mx-1 px-2 py-1 rounded ${visualStyles} ${colorClass} bg-opacity-90 dark:bg-opacity-80 text-white text-xs overflow-hidden transition-all ${
+      className={`absolute left-0 right-0 mx-0.5 px-2 py-1 rounded-sm ${visualStyles} text-white text-xs overflow-hidden transition-all ${
         isDragging ? 'opacity-50' : ''
       }`}
       style={{ ...style, ...transformStyle, ...colorStyle }}
@@ -58,14 +51,14 @@ function DraggableEvent({ event, style, colorClass, colorStyle }: DraggableEvent
       {...(isSoft ? attributes : {})}
       title={event.title}
     >
-      <div className="font-medium truncate">{event.title}</div>
-      {event.priority && (
-        <div className="text-xs opacity-75">P{event.priority}</div>
-      )}
+      <div className="font-medium truncate text-xs">{event.title}</div>
+      <div className="text-[10px] opacity-80 truncate">
+        {event.is_recurring && '🔁 '}
+        {format(parseISO(event.start), 'h:mm a')}
+      </div>
     </div>
   );
 
-  // Wrap soft tasks with reasoning tooltip
   if (isSoft && event.reasoning) {
     return <ReasoningTooltip reasoning={event.reasoning}>{eventContent}</ReasoningTooltip>;
   }
@@ -90,7 +83,7 @@ function QuarterHourSlot({ day, hour, minutes, isOver }: QuarterHourSlotProps) {
     <div
       ref={setNodeRef}
       className={`absolute h-[15px] w-full transition-colors ${
-        isOver ? 'bg-indigo-100 dark:bg-indigo-900/20 ring-1 ring-indigo-400' : ''
+        isOver ? 'bg-blue-100 dark:bg-blue-900/20 ring-1 ring-blue-400' : ''
       }`}
       style={{ top: `${(minutes / 60) * 60}px` }}
     />
@@ -105,12 +98,7 @@ interface HourSlotWithQuartersProps {
 
 function HourSlotWithQuarters({ day, hour, overId }: HourSlotWithQuartersProps) {
   return (
-    <div className={`relative h-[60px] ${
-      hour % 3 === 0
-        ? 'border-b-2 border-gray-300 dark:border-gray-600'
-        : 'border-b border-gray-200 dark:border-gray-700'
-    }`}>
-      {/* Quarter-hour droppable slots */}
+    <div className="relative h-[60px] border-b border-gray-100 dark:border-gray-800">
       {[0, 15, 30, 45].map(minutes => (
         <QuarterHourSlot
           key={minutes}
@@ -120,9 +108,8 @@ function HourSlotWithQuarters({ day, hour, overId }: HourSlotWithQuartersProps) 
           isOver={overId === `${day.toISOString()}-${hour}-${minutes}`}
         />
       ))}
-
-      {/* Half-hour dashed line */}
-      <div className="absolute top-1/2 w-full border-t border-dashed border-gray-200 dark:border-gray-700 pointer-events-none" />
+      {/* Half-hour line */}
+      <div className="absolute top-1/2 w-full border-t border-dashed border-gray-100 dark:border-gray-800 pointer-events-none" />
     </div>
   );
 }
@@ -130,13 +117,11 @@ function HourSlotWithQuarters({ day, hour, overId }: HourSlotWithQuartersProps) 
 function CurrentTimeIndicator({ startHour, weekStart }: { startHour: number; weekStart: Date }) {
   const [now, setNow] = useState(new Date());
 
-  // Update every minute
   useEffect(() => {
     const interval = setInterval(() => setNow(new Date()), 60000);
     return () => clearInterval(interval);
   }, []);
 
-  // Only show if today is in current week
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
   const todayColumnIndex = weekDays.findIndex((day) => isSameDay(day, now));
 
@@ -144,7 +129,7 @@ function CurrentTimeIndicator({ startHour, weekStart }: { startHour: number; wee
 
   const hour = now.getHours();
   const minutes = now.getMinutes();
-  const topPosition = (hour - startHour) * 60 + minutes; // 1px per minute
+  const topPosition = (hour - startHour) * 60 + minutes;
 
   return (
     <div
@@ -152,43 +137,34 @@ function CurrentTimeIndicator({ startHour, weekStart }: { startHour: number; wee
       style={{ top: `${topPosition}px` }}
     >
       <div className="flex items-center">
-        <div className="w-16 text-xs font-semibold text-red-600 dark:text-red-400">
-          {format(now, 'h:mm a')}
-        </div>
-        <div className="flex-1 h-0.5 bg-red-600 dark:bg-red-400 shadow-lg" />
+        <div className="w-2 h-2 bg-red-500 rounded-full -ml-1" />
+        <div className="flex-1 h-0.5 bg-red-500" />
       </div>
     </div>
   );
 }
 
-export default function DraggableCalendar({
+export default function WeekView({
   events,
   currentDate,
   workingHoursStart,
   workingHoursEnd,
   onEventMove,
   onCalendarReload,
-  rippleChanges = []
-}: DraggableCalendarProps) {
+}: WeekViewProps) {
   const [activeEvent, setActiveEvent] = useState<CalendarEvent | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
-  const [dragPreviewTime, setDragPreviewTime] = useState<string | null>(null);
-  const [dragPreviewPosition, setDragPreviewPosition] = useState<{x: number, y: number} | null>(null);
 
-  // Get start of week (Monday)
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
   const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
 
-  // Parse working hours
   const workingStartHour = parseInt(workingHoursStart.split(':')[0]);
   const workingEndHour = parseInt(workingHoursEnd.split(':')[0]);
 
-  // Show extended hours (6am-10pm)
   const startHour = 6;
   const endHour = 22;
   const hours = Array.from({ length: endHour - startHour }, (_, i) => startHour + i);
 
-  // Get events for a specific day
   const getEventsForDay = (day: Date) => {
     return events.filter(event => {
       const eventStart = parseISO(event.start);
@@ -196,7 +172,6 @@ export default function DraggableCalendar({
     });
   };
 
-  // Calculate position and height for an event
   const getEventPosition = (event: CalendarEvent) => {
     const eventStart = parseISO(event.start);
     const eventEnd = parseISO(event.end);
@@ -205,40 +180,37 @@ export default function DraggableCalendar({
     const endMinutes = eventEnd.getHours() * 60 + eventEnd.getMinutes();
     const dayStartMinutes = startHour * 60;
 
-    const top = ((startMinutes - dayStartMinutes) / 60) * 60; // 60px per hour
+    const top = ((startMinutes - dayStartMinutes) / 60) * 60;
     const height = ((endMinutes - startMinutes) / 60) * 60;
 
     return { top: `${top}px`, height: `${height}px` };
   };
 
-  // Get color based on event type and priority
-  const getEventColor = (event: CalendarEvent) => {
-    // If event has a custom color (from calendar source), return empty string
-    // We'll use inline styles instead
-    if (event.color) {
-      return '';
-    }
-
-    if (event.type === 'hard_event') {
-      return 'bg-blue-500 border-blue-600';
-    }
-    // Soft task - color by priority
-    const priority = event.priority || 5;
-    if (priority >= 8) return 'bg-red-500 border-red-600';
-    if (priority >= 5) return 'bg-yellow-500 border-yellow-600';
-    return 'bg-green-500 border-green-600';
-  };
-
-  // Get inline styles for events with custom colors
   const getEventColorStyle = (event: CalendarEvent): React.CSSProperties => {
     if (event.color) {
       return {
         backgroundColor: event.color,
         borderColor: event.color,
-        opacity: 0.9,
       };
     }
-    return {};
+
+    // Default colors for events without custom color
+    if (event.type === 'hard_event') {
+      return {
+        backgroundColor: '#007AFF',
+        borderColor: '#007AFF',
+      };
+    }
+
+    // Soft task - color by priority
+    const priority = event.priority || 5;
+    if (priority >= 8) {
+      return { backgroundColor: '#FF3B30', borderColor: '#FF3B30' };
+    }
+    if (priority >= 5) {
+      return { backgroundColor: '#FF9500', borderColor: '#FF9500' };
+    }
+    return { backgroundColor: '#34C759', borderColor: '#34C759' };
   };
 
   const handleDragStart = (event: DragStartEvent) => {
@@ -248,36 +220,12 @@ export default function DraggableCalendar({
 
   const handleDragOver = (event: any) => {
     setOverId(event.over?.id || null);
-
-    if (!event.over) {
-      setDragPreviewTime(null);
-      setDragPreviewPosition(null);
-      return;
-    }
-
-    const dropData = event.over.data.current as { day: Date; hour: number; minutes?: number };
-    if (dropData && dropData.day && typeof dropData.hour === 'number') {
-      const previewDate = new Date(dropData.day);
-      previewDate.setHours(dropData.hour, dropData.minutes || 0, 0, 0);
-
-      setDragPreviewTime(format(previewDate, 'h:mm a'));
-
-      // Get mouse position for preview placement
-      if (event.activatorEvent && 'clientX' in event.activatorEvent) {
-        setDragPreviewPosition({
-          x: event.activatorEvent.clientX,
-          y: event.activatorEvent.clientY
-        });
-      }
-    }
   };
 
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
     setActiveEvent(null);
     setOverId(null);
-    setDragPreviewTime(null);
-    setDragPreviewPosition(null);
 
     if (!over) return;
 
@@ -286,21 +234,27 @@ export default function DraggableCalendar({
 
     if (!dropTarget) return;
 
-    // Calculate new start/end time with 15-min precision
     const newStart = new Date(dropTarget.day);
     newStart.setHours(dropTarget.hour, dropTarget.minutes || 0, 0, 0);
 
-    // Check if drag source is Task Bin
     const isFromTaskBin = dragData?.source === 'task-bin';
 
     if (isFromTaskBin) {
-      // Schedule unscheduled task
-      const task = dragData.task as Task;
+      const task = dragData.task;
       const newEnd = new Date(newStart.getTime() + task.estimated_duration_minutes * 60000);
 
       try {
-        await tasks.scheduleTask(task.id, newStart, newEnd);
-        // Reload calendar to show newly scheduled task
+        const response = await fetch(`http://localhost:8000/api/v1/tasks/${task.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            scheduled_start: newStart.toISOString(),
+            scheduled_end: newEnd.toISOString(),
+          }),
+        });
+
+        if (!response.ok) throw new Error('Failed to schedule task');
+
         if (onCalendarReload) {
           await onCalendarReload();
         }
@@ -309,7 +263,6 @@ export default function DraggableCalendar({
         alert('Failed to schedule task. Please try again.');
       }
     } else {
-      // Existing move logic (ripple effect)
       const movedEvent = dragData as CalendarEvent;
       const originalStart = parseISO(movedEvent.start);
       const originalEnd = parseISO(movedEvent.end);
@@ -327,44 +280,47 @@ export default function DraggableCalendar({
       onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
     >
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+      <div className="bg-white dark:bg-gray-900 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
         {/* Header with days */}
-        <div className="grid grid-cols-8 border-b border-gray-200 dark:border-gray-700">
-          <div className="p-4 text-sm font-medium text-gray-500 dark:text-gray-400">Time</div>
-          {days.map((day) => (
-            <div
-              key={day.toISOString()}
-              className={`p-4 text-center ${
-                isSameDay(day, new Date())
-                  ? 'bg-indigo-50 dark:bg-indigo-900/20'
-                  : ''
-              }`}
-            >
-              <div className="text-sm font-medium text-gray-900 dark:text-white">
-                {format(day, 'EEE')}
+        <div className="grid grid-cols-8 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
+          <div className="p-3 text-xs font-medium text-gray-500 dark:text-gray-400">
+            {format(currentDate, 'MMM yyyy')}
+          </div>
+          {days.map((day) => {
+            const isToday = isSameDay(day, new Date());
+            return (
+              <div
+                key={day.toISOString()}
+                className={`p-3 text-center ${
+                  isToday ? 'bg-blue-50 dark:bg-blue-900/20' : ''
+                }`}
+              >
+                <div className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                  {format(day, 'EEE')}
+                </div>
+                <div className={`text-lg font-semibold mt-1 ${
+                  isToday
+                    ? 'text-blue-600 dark:text-blue-400'
+                    : 'text-gray-900 dark:text-gray-100'
+                }`}>
+                  {format(day, 'd')}
+                </div>
               </div>
-              <div className={`text-lg font-semibold ${
-                isSameDay(day, new Date())
-                  ? 'text-indigo-600 dark:text-indigo-400'
-                  : 'text-gray-700 dark:text-gray-300'
-              }`}>
-                {format(day, 'd')}
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
-        {/* Calendar grid - scrollable */}
-        <div className="overflow-y-auto max-h-[600px]">
+        {/* Calendar grid */}
+        <div className="overflow-y-auto max-h-[calc(100vh-280px)]">
           <div className="grid grid-cols-8 relative">
             {/* Time labels */}
-            <div className="border-r border-gray-200 dark:border-gray-700">
+            <div className="border-r border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
               {hours.map((hour) => (
                 <div
                   key={hour}
-                  className="h-[60px] px-2 py-1 text-xs font-semibold text-gray-600 dark:text-gray-400 text-right border-b-2 border-gray-200 dark:border-gray-700"
+                  className="h-[60px] px-2 py-1 text-xs text-gray-500 dark:text-gray-400 text-right"
                 >
-                  {hour}:00
+                  {format(new Date().setHours(hour, 0, 0, 0), 'h a')}
                 </div>
               ))}
             </div>
@@ -372,13 +328,16 @@ export default function DraggableCalendar({
             {/* Day columns */}
             {days.map((day) => {
               const dayEvents = getEventsForDay(day);
+              const isToday = isSameDay(day, new Date());
 
               return (
                 <div
                   key={day.toISOString()}
-                  className="relative border-r border-gray-200 dark:border-gray-700"
+                  className={`relative border-r border-gray-200 dark:border-gray-700 ${
+                    isToday ? 'bg-blue-50/30 dark:bg-blue-900/10' : ''
+                  }`}
                 >
-                  {/* Hour lines with quarter-hour droppable zones */}
+                  {/* Hour slots */}
                   {hours.map((hour) => (
                     <HourSlotWithQuarters
                       key={hour}
@@ -392,21 +351,19 @@ export default function DraggableCalendar({
                   {dayEvents.map((event) => {
                     const positionStyle = getEventPosition(event);
                     const colorStyle = getEventColorStyle(event);
-                    const colorClass = getEventColor(event);
 
                     return (
                       <DraggableEvent
                         key={`${event.type}-${event.id}`}
                         event={event}
                         style={positionStyle}
-                        colorClass={colorClass}
                         colorStyle={colorStyle}
                       />
                     );
                   })}
 
                   {/* Current time indicator */}
-                  {isSameDay(day, new Date()) && (
+                  {isToday && (
                     <CurrentTimeIndicator startHour={startHour} weekStart={weekStart} />
                   )}
                 </div>
@@ -420,52 +377,13 @@ export default function DraggableCalendar({
       <DragOverlay>
         {activeEvent ? (
           <div
-            className={`px-2 py-1 rounded border-l-4 ${getEventColor(activeEvent)} bg-opacity-90 text-white text-xs shadow-2xl w-32`}
+            className="px-2 py-1 rounded-sm border-l-4 text-white text-xs shadow-lg w-32"
+            style={getEventColorStyle(activeEvent)}
           >
             <div className="font-medium truncate">{activeEvent.title}</div>
-            {activeEvent.priority && (
-              <div className="text-xs opacity-75">P{activeEvent.priority}</div>
-            )}
           </div>
         ) : null}
       </DragOverlay>
-
-      {/* Time preview tooltip during drag */}
-      {dragPreviewTime && dragPreviewPosition && (
-        <div
-          className="fixed z-50 px-3 py-1.5 bg-indigo-600 text-white text-sm font-medium rounded-lg shadow-lg pointer-events-none"
-          style={{
-            left: dragPreviewPosition.x + 15,
-            top: dragPreviewPosition.y - 30,
-          }}
-        >
-          {dragPreviewTime}
-        </div>
-      )}
-
-      {/* Ripple effect animation overlay */}
-      <AnimatePresence>
-        {rippleChanges.length > 0 && (
-          <motion.div className="fixed inset-0 pointer-events-none z-50">
-            {rippleChanges.map((change, i) => (
-              <motion.div
-                key={change.task_id}
-                initial={{ scale: 0.5, opacity: 0.8 }}
-                animate={{ scale: 2.5, opacity: 0 }}
-                exit={{ opacity: 0 }}
-                transition={{
-                  duration: 1.2,
-                  delay: i * 0.15,
-                  ease: 'easeOut',
-                }}
-                className="absolute inset-0 flex items-center justify-center"
-              >
-                <div className="w-32 h-32 bg-blue-500/30 rounded-full blur-xl" />
-              </motion.div>
-            ))}
-          </motion.div>
-        )}
-      </AnimatePresence>
     </DndContext>
   );
 }
