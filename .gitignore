@@ -46,6 +46,7 @@ backend/alembic/versions/*.pyc
 *.log
 logs/
 *.log.*
+.claude/
 
 # OS
 .DS_Store
